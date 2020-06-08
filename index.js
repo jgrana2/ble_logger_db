@@ -20,7 +20,7 @@ console.log('EBDBL v0.1') //ECG BLE DB Logger v0.1
 //Connect to database
 var MongoClient = require('mongodb').MongoClient;
 var url = "mongodb://localhost:27017/";
-MongoClient.connect(url, {useUnifiedTopology: true}, function(err, db) {
+MongoClient.connect(url, {useUnifiedTopology: true, poolSize: 100}, function(err, db) {
   if (err) throw err;
   db.db("devices").createCollection("device1", function(err, res) {
     if (err) throw err;
