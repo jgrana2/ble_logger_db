@@ -9,7 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "int24": "0.0.1",
     "mongodb": "^3.5.7",
-    "noble": "^1.9.1"
+    "noble-mac": "https://github.com/Timeular/noble-mac.git"
   }
 }

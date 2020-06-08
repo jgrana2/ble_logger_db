@@ -1,9 +1,11 @@
-//Script to acquire BLE data from monitoring device using a USB BLE dongle on
-// Jetson Nano, and store it on a Mongo DB
+//Acquire BLE data from monitoring device using a USB BLE dongle on
+//Jetson Nano, and store it on a Mongo DB
 
 var noble = require('noble');
 var mongo = require('mongodb');
-// var Binary = require('mongodb').Binary;
+
+//24 bit signed integer
+var int24 = require('int24');
 
 // Delay
 const { promisify } = require('util')
@@ -12,6 +14,9 @@ const sleep = promisify(setTimeout)
 // ECG Service UUID
 var ecg_uuid = "805b";
 
+//Welcome
+console.log('EBDBL v0.1') //ECG BLE DB Logger v0.1
+
 //Connect to database
 var MongoClient = require('mongodb').MongoClient;
 var url = "mongodb://localhost:27017/";
@@ -19,7 +24,7 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, db) {
   if (err) throw err;
   db.db("devices").createCollection("device1", function(err, res) {
     if (err) throw err;
-    console.log("Collection created!");
+    console.log("Collection created");
   });
 
   //New peripheral discovered event handler
@@ -31,7 +36,7 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, db) {
     // peripheral.advertisement.serviceData        - normal advertisement service data
 
     //Print peripheral name
-    console.log(peripheral.address, JSON.stringify(peripheral.advertisement.localName), "dB");
+    console.log("Found device", peripheral.address, "with name", JSON.stringify(peripheral.advertisement.localName));
 
     //Check device name
     if (peripheral.advertisement.localName === "IoT Holter"){
@@ -58,7 +63,7 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, db) {
                 if (error) {
                   console.log('Characteristic read error');
                 }
-                console.log("Notifications on");
+                console.log("Notifications enabled on characteristic", characteristic.uuid);
               });
 
               //Receive notification data
@@ -67,9 +72,13 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, db) {
 
                 //Parse samples
                 var samples_per_document = 21;
-                var samples = new Uint32Array(samples_per_document);
-                for (var i = 0; i < data.length/Uint32Array.BYTES_PER_ELEMENT; i++) {
-                  samples[i] = data.readUInt32LE(i*Uint32Array.BYTES_PER_ELEMENT);
+                var samples = new Int32Array(samples_per_document);
+                for (var i = 0; i < data.length/Int32Array.BYTES_PER_ELEMENT; i++) {
+                  var temp32 = data.readUInt32LE(i*Int32Array.BYTES_PER_ELEMENT);
+
+                  //Convert to 24-bit signed
+                  samples[i] = int24.readInt24LE(data, i*Int32Array.BYTES_PER_ELEMENT);
+                  // console.log(temp32.toString(16), samples[i].toString(16));
                 }
 
                 //Make document
@@ -77,7 +86,7 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, db) {
                 doc.uuid = characteristic.uuid;
                 doc.ts = new Date();
                 doc.samples = samples;
-                console.log(doc);
+                // console.log(doc);
 
                 //Insert document into DB
                 db.db("devices").collection("device1").insertOne(doc, function(err, res){
@@ -98,11 +107,11 @@ MongoClient.connect(url, {useUnifiedTopology: true}, function(err, db) {
     if (state!="poweredOn") return;
     console.log("Starting scan...");
     noble.startScanning();
-    sleep(2000).then(() => {
+    sleep(20000).then(() => {
       noble.stopScanning();
     })
   });
   noble.on('discover', onDiscovery);
-  noble.on('scanStart', function() { console.log("Scanning started."); });
-  noble.on('scanStop', function() { console.log("Scanning stopped.");});
+  noble.on('scanStart', function() { console.log("Scanning started"); });
+  noble.on('scanStop', function() { console.log("Scanning stopped");});
 });
